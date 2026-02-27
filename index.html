@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Gestão de Visitas Técnicas - Ceará</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-body: #f8fafc;
+            --primary: #1a1c2c;
+            --accent: #3b82f6;
+            --border-std: #94a3b8;
+            --white: #ffffff;
+            --holiday: #059669;
+            --weekend: #ef4444;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
+        body { background-color: var(--bg-body); color: #1e293b; }
+
+        .top-nav { background: var(--white); border-bottom: 1px solid #e2e8f0; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .nav-btn { padding: 0.6rem 1.2rem; font-size: 0.85rem; font-weight: 600; border-radius: 6px; border: 1px solid transparent; cursor: pointer; background: transparent; color: #64748b; }
+        .nav-btn.active { background: var(--primary); color: white; }
+
+        .action-bar { padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; background: var(--white); border-bottom: 1px solid #e2e8f0; }
+        .btn-main { background: #6366f1; color: white; border: none; padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: 700; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+
+        .main-content { padding: 20px; max-width: 1600px; margin: 0 auto; }
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+        
+        #calendarTitle { text-align: center; font-weight: 800; font-size: 1.4rem; color: var(--primary); margin-bottom: 15px; text-transform: uppercase; }
+        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+        .day-label { text-align: center; font-size: 0.75rem; font-weight: 800; color: #64748b; padding-bottom: 5px; }
+
+        .calendar-cell {
+            background: var(--white); border: 2px solid var(--border-std); border-radius: 12px;
+            height: 150px; max-height: 150px; padding: 8px; display: flex;
+            flex-direction: column; align-items: center; overflow: hidden; position: relative;
+            cursor: pointer;
+        }
+        .calendar-cell:hover { background-color: #f1f5f9; }
+        .cell-weekend { border-color: var(--weekend); }
+        .cell-holiday { border-color: var(--holiday); }
+        .day-number { font-weight: 700; font-size: 1.1rem; color: #4338ca; margin-bottom: 4px; pointer-events: none; }
+
+        .info-card { border-top: 1px solid #f1f5f9; width: 100%; padding-top: 4px; margin-top: 2px; text-align: center; cursor: pointer; transition: 0.2s; }
+        .info-card:hover { background: #e0e7ff; }
+        .t-name { font-size: 0.68rem; font-weight: 800; color: #1e293b; display: block; text-transform: uppercase; }
+        .u-name { font-size: 0.62rem; font-weight: 700; color: var(--accent); display: block; text-transform: uppercase; }
+        .c-name { font-size: 0.62rem; font-weight: 600; color: #64748b; display: block; text-transform: uppercase; }
+
+        .holiday-label { color: var(--holiday); font-size: 0.65rem; font-weight: 800; text-align: center; text-transform: uppercase; margin-bottom: 2px; }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; }
+        .modal-overlay.active { display: flex; }
+        .modal { background: white; padding: 2rem; border-radius: 15px; width: 450px; max-width: 90%; }
+
+        .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
+        .form-input { width: 100%; padding: 0.7rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 0.9rem; margin-bottom: 10px; }
+
+        @media print {
+            @page { size: A4 landscape; margin: 0; }
+            html, body { height: 100%; overflow: hidden; }
+            .no-print, .top-nav, .action-bar, button { display: none !important; }
+            .main-content { padding: 5mm; width: 100%; height: 100%; }
+            .calendar-grid { gap: 5px; height: 85vh; }
+            .calendar-cell { height: auto !important; flex: 1; border-width: 1.5px; max-height: none !important; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="top-nav no-print">
+        <h1 style="font-size: 1.1rem; font-weight: 800;">VISITAS TÉCNICAS</h1>
+        <div class="nav-buttons">
+            <button class="nav-btn active" id="btn-calendario" onclick="switchTab('calendario')">Calendário</button>
+            <button class="nav-btn" id="btn-agendamentos" onclick="switchTab('agendamentos')">Agendamentos</button>
+            <button class="nav-btn" id="btn-tecnicos" onclick="switchTab('tecnicos')">Técnicos</button>
+            <button class="nav-btn" id="btn-urs" onclick="switchTab('urs')">URs</button>
+        </div>
+    </nav>
+
+    <div class="action-bar no-print">
+        <div style="display:flex; gap:8px;">
+            <button class="nav-btn" style="border:1px solid #ddd" onclick="prevMonth()">Anterior</button>
+            <button class="nav-btn" style="border:1px solid #ddd" onclick="nextMonth()">Próximo</button>
+        </div>
+        <button class="btn-main" onclick="window.print()">🖨️ Imprimir PDF</button>
+        <div style="display:flex; gap:8px;">
+            <button class="nav-btn" style="border:1px solid #ddd" onclick="exportJSON()">💾 Backup</button>
+            <button class="nav-btn" style="border:1px solid #ddd" onclick="importJSON()">📂 Restaurar</button>
+        </div>
+    </div>
+
+    <main class="main-content">
+        <div id="calendario" class="content-section active">
+            <h2 id="calendarTitle">CALENDÁRIO</h2>
+            <div class="calendar-grid" id="calendarGrid"></div>
+        </div>
+
+        <div id="agendamentos" class="content-section">
+            <div class="card">
+                <h3>Novo Agendamento</h3><br>
+                <form onsubmit="addAgendamento(event)">
+                    <select id="tecnicoSelect" class="form-input" required></select>
+                    <select id="urSelect" class="form-input" required onchange="updateCidades()"></select>
+                    <select id="cidadeSelect" class="form-input" required></select>
+                    <input type="date" id="dataInput" class="form-input" required>
+                    <textarea id="atividadesInput" class="form-input" style="height:80px" placeholder="Roteiro Técnico" required></textarea>
+                    <button type="submit" class="btn-main" style="width:100%; justify-content:center">Salvar</button>
+                </form>
+            </div>
+        </div>
+        
+        <div id="tecnicos" class="content-section">
+            <div class="card">
+                <h3>Cadastrar Técnico</h3><br>
+                <form onsubmit="addTecnico(event)" style="display:flex; gap:10px">
+                    <input type="text" id="tecnicoNomeInput" class="form-input" placeholder="Nome" required>
+                    <button type="submit" class="btn-main">Adicionar</button>
+                </form>
+                <table style="width:100%; margin-top:10px" id="tecnicosTable"></table>
+            </div>
+        </div>
+
+        <div id="urs" class="content-section">
+            <div class="card">
+                <h3>Unidades Regionais</h3><br>
+                <form onsubmit="addUR(event)">
+                    <input type="text" id="urNomeInput" class="form-input" placeholder="Nome da UR" required>
+                    <div id="cidadesInputContainer"><input type="text" class="form-input cidade-input" placeholder="Cidade"></div>
+                    <button type="button" class="nav-btn" onclick="addCidadeInput()">+ Cidade</button>
+                    <button type="submit" class="btn-main" style="width:100%; margin-top:10px">Salvar UR</button>
+                </form>
+                <div id="ursTable" style="margin-top:20px"></div>
+            </div>
+        </div>
+    </main>
+
+    <div id="modalOverlay" class="modal-overlay" onclick="closeModal()">
+        <div class="modal" onclick="event.stopPropagation()">
+            <h2 style="margin-bottom:15px">Detalhes da Visita</h2>
+            <div id="modalBody"></div><br>
+            <button class="btn-main" style="width:100%; justify-content:center" onclick="closeModal()">Fechar</button>
+        </div>
+    </div>
+
+    <script>
+        // Feriados Estáticos para Fortaleza (Visíveis)
+        const FERIADOS_CALENDARIO = {
+            '01-01': 'Ano Novo', '19-03': 'São José', '25-03': 'Data Magna CE',
+            '13-04': 'Aniv. Fortaleza', '21-04': 'Tiradentes', '01-05': 'Dia do Trabalho',
+            '07-09': 'Independência', '12-10': 'Nossa Sra. Aparecida', '02-11': 'Finados',
+            '15-11': 'Procl. República', '20-11': 'Consciência Negra', '25-12': 'Natal'
+        };
+
+        // Base de Alertas por CIDADE (Exemplo: Eusébio - São João em 23/06)
+        const BASE_ALERTAS_MUNICIPAIS = {
+            'EUSÉBIO': { '23-06': 'São João (Ponto Facultativo)', '11-02': 'Aniv. Eusébio' },
+            'CAUCAIA': { '15-10': 'Aniv. Caucaia' },
+            'MARACANAÚ': { '06-03': 'Aniv. Maracanaú' },
+            'AQUIRAZ': { '13-02': 'Aniv. Aquiraz' }
+        };
+
+        let currentDate = new Date();
+
+        function initData() {
+            if (!localStorage.getItem('technicians')) localStorage.setItem('technicians', '[]');
+            if (!localStorage.getItem('urs')) localStorage.setItem('urs', '[]');
+            if (!localStorage.getItem('agendamentos')) localStorage.setItem('agendamentos', '[]');
+            renderCalendar();
+            updateSelects();
+        }
+
+        const getData = (k) => JSON.parse(localStorage.getItem(k));
+        const setData = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendarGrid');
+            const year = currentDate.getFullYear(), month = currentDate.getMonth();
+            const firstDay = new Date(year, month, 1).getDay(), daysInMonth = new Date(year, month + 1, 0).getDate();
+            document.getElementById('calendarTitle').textContent = `ESCALA DE ${currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()}`;
+            grid.innerHTML = '';
+            ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].forEach(d => grid.innerHTML += `<div class="day-label">${d}</div>`);
+            for (let i = 0; i < firstDay; i++) grid.innerHTML += '<div></div>';
+            
+            const ags = getData('agendamentos'), ts = getData('technicians'), us = getData('urs');
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day), dm = `${String(day).padStart(2,'0')}-${String(month+1).padStart(2,'0')}`, ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                const fn = FERIADOS_CALENDARIO[dm], iw = date.getDay() === 0 || date.getDay() === 6, da = ags.filter(a => a.data === ds);
+                let cl = "calendar-cell" + (iw ? " cell-weekend" : "") + (fn ? " cell-holiday" : "");
+                
+                let h = `<div class="${cl}" onclick="quickSchedule('${ds}')"><span class="day-number">${day}</span>${fn ? `<div class="holiday-label">${fn}</div>` : ''}`;
+                da.forEach(a => {
+                    const t = ts.find(x => x.id === a.tecnicoId), u = us.find(x => x.id === a.urId), c = u?.cidades.find(x => x.id === a.cidadeId);
+                    h += `<div class="info-card" onclick="event.stopPropagation(); openDetailModal('${a.id}')"><span class="t-name">${t?.nome || '---'}</span><span class="u-name">${u?.nome || '---'}</span><span class="c-name">${c?.nome || '---'}</span></div>`;
+                });
+                grid.innerHTML += h + `</div>`;
+            }
+        }
+
+        function quickSchedule(dateStr) { switchTab('agendamentos'); document.getElementById('dataInput').value = dateStr; }
+
+        function openDetailModal(id) {
+            const a = getData('agendamentos').find(x => x.id === id);
+            const t = getData('technicians').find(x => x.id === a.tecnicoId);
+            const u = getData('urs').find(x => x.id === a.urId);
+            const c = u?.cidades.find(x => x.id === a.cidadeId);
+            document.getElementById('modalBody').innerHTML = `<p><strong>Técnico:</strong> ${t?.nome}</p><p><strong>Local:</strong> ${u?.nome} - ${c?.nome}</p><p><strong>Data:</strong> ${new Date(a.data + 'T00:00:00').toLocaleDateString('pt-BR')}</p><br><div style="background:#f1f5f9; padding:10px; border-radius:8px; font-size:0.85rem">${a.atividades}</div><br><button class="nav-btn" style="color:red; width:100%; border:1px solid red" onclick="deleteAgendamento('${id}')">Excluir</button>`;
+            document.getElementById('modalOverlay').classList.add('active');
+        }
+
+        // --- LÓGICA DE ALERTA CORRIGIDA ---
+        function addAgendamento(e) {
+            e.preventDefault();
+            const di = document.getElementById('dataInput').value, dm = di.split('-').slice(1).reverse().join('-');
+            const cidadeSelect = document.getElementById('cidadeSelect');
+            const cidadeNome = cidadeSelect.options[cidadeSelect.selectedIndex].text.toUpperCase();
+
+            // 1. Verifica feriados gerais (Fortaleza)
+            let feriado = FERIADOS_CALENDARIO[dm];
+
+            // 2. Verifica feriados específicos da CIDADE selecionada
+            if (BASE_ALERTAS_MUNICIPAIS[cidadeNome] && BASE_ALERTAS_MUNICIPAIS[cidadeNome][dm]) {
+                feriado = BASE_ALERTAS_MUNICIPAIS[cidadeNome][dm];
+            }
+
+            if (feriado && !confirm(`Atenção: A data é feriado em ${cidadeNome} (${feriado}). Continuar?`)) return;
+
+            const ags = getData('agendamentos');
+            ags.push({ id: Date.now().toString(), tecnicoId: document.getElementById('tecnicoSelect').value, urId: document.getElementById('urSelect').value, cidadeId: document.getElementById('cidadeSelect').value, data: di, atividades: document.getElementById('atividadesInput').value });
+            setData('agendamentos', ags);
+            switchTab('calendario');
+            renderCalendar();
+        }
+
+        function addTecnico(e) { e.preventDefault(); const ts = getData('technicians'); ts.push({ id: Date.now().toString(), nome: document.getElementById('tecnicoNomeInput').value }); setData('technicians', ts); document.getElementById('tecnicoNomeInput').value = ''; renderTecnicosTable(); updateSelects(); }
+        function renderTecnicosTable() { document.getElementById('tecnicosTable').innerHTML = getData('technicians').map(t => `<tr style="border-bottom:1px solid #eee"><td style="padding:8px">${t.nome}</td><td align="right"><button class="nav-btn" onclick="deleteItem('technicians','${t.id}')">Excluir</button></td></tr>`).join(''); }
+        function addUR(e) { e.preventDefault(); const urs = getData('urs'), cidades = Array.from(document.querySelectorAll('.cidade-input')).map(i => i.value.trim()).filter(v => v).map(v => ({ id: Math.random().toString(36).substr(2, 9), nome: v })); urs.push({ id: Date.now().toString(), nome: document.getElementById('urNomeInput').value, cidades }); setData('urs', urs); location.reload(); }
+        function renderURsTable() { document.getElementById('ursTable').innerHTML = getData('urs').map(u => `<div class="card" style="display:flex; justify-content:space-between; align-items:center"><div><strong>${u.nome}</strong><br><small>${u.cidades.map(c => c.nome).join(', ')}</small></div><button class="nav-btn" onclick="deleteItem('urs','${u.id}')">Excluir</button></div>`).join(''); }
+        function deleteItem(k, id) { if(confirm('Excluir?')) { setData(k, getData(k).filter(x => x.id !== id)); location.reload(); } }
+        function deleteAgendamento(id) { if(confirm('Excluir?')) { setData('agendamentos', getData('agendamentos').filter(x => x.id !== id)); closeModal(); renderCalendar(); } }
+        function addCidadeInput() { const container = document.getElementById('cidadesInputContainer'); const inp = document.createElement('input'); inp.className = 'form-input cidade-input'; inp.placeholder = 'Cidade'; container.appendChild(inp); }
+        function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+        function prevMonth() { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); }
+        function nextMonth() { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); }
+        function switchTab(id) { document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active')); document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active')); document.getElementById(id).classList.add('active'); document.getElementById('btn-' + id).classList.add('active'); if(id === 'tecnicos') renderTecnicosTable(); if(id === 'urs') renderURsTable(); }
+        function updateSelects() { document.getElementById('tecnicoSelect').innerHTML = getData('technicians').map(t => `<option value="${t.id}">${t.nome}</option>`).join(''); document.getElementById('urSelect').innerHTML = getData('urs').map(u => `<option value="${u.id}">${u.nome}</option>`).join(''); updateCidades(); }
+        function updateCidades() { const ur = getData('urs').find(u => u.id === document.getElementById('urSelect').value); document.getElementById('cidadeSelect').innerHTML = ur ? ur.cidades.map(c => `<option value="${c.id}">${c.nome}</option>`).join('') : ''; }
+        function exportJSON() { const d = { techs: getData('technicians'), urs: getData('urs'), ags: getData('agendamentos') }, b = new Blob([JSON.stringify(d)], {type:'application/json'}), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'backup_escala.json'; a.click(); }
+        function importJSON() { const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json'; inp.onchange = e => { const r = new FileReader(); r.onload = ev => { const d = JSON.parse(ev.target.result); setData('technicians', d.techs); setData('urs', d.urs); setData('agendamentos', d.ags); location.reload(); }; r.readAsText(e.target.files[0]); }; inp.click(); }
+        window.onload = initData;
+    </script>
+</body>
+</html>
