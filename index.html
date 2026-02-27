@@ -3,25 +3,33 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Visitas Técnicas - Fortaleza</title>
+    <title>Sistema de Visitas Técnicas - Realtime</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.1.3/firebase-database-compat.js"></script>
+
     <style>
         :root {
             --bg-body: #f8fafc; --primary: #1a1c2c; --accent: #3b82f6;
             --border-std: #94a3b8; --white: #ffffff; --holiday: #059669; --weekend: #ef4444;
         }
+
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: var(--bg-body); color: #1e293b; line-height: 1.5; }
+
+        /* Navegação e Responsividade */
         .top-nav { background: var(--white); border-bottom: 1px solid #e2e8f0; padding: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
         .nav-buttons { display: flex; gap: 5px; }
         .nav-btn { padding: 0.6rem 1rem; font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer; background: transparent; color: #64748b; border: 1px solid transparent; transition: 0.2s; }
         .nav-btn.active { background: var(--primary); color: white; }
+
         .main-content { padding: 15px; max-width: 1600px; margin: 0 auto; }
         .content-section { display: none; }
         .content-section.active { display: block; }
+        
         .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+        
         @media (max-width: 768px) {
             .calendar-grid { gap: 4px; }
             .calendar-cell { height: 110px !important; padding: 4px !important; border-radius: 8px !important; }
@@ -30,30 +38,40 @@
             .u-name, .c-name { font-size: 0.5rem !important; }
             .nav-buttons { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
         }
-        .calendar-cell { background: var(--white); border: 2px solid var(--border-std); border-radius: 12px; height: 150px; padding: 10px; display: flex; flex-direction: column; align-items: center; overflow: hidden; cursor: pointer; position: relative; }
+
+        .calendar-cell {
+            background: var(--white); border: 2px solid var(--border-std); border-radius: 12px;
+            height: 150px; padding: 10px; display: flex; flex-direction: column; align-items: center;
+            overflow: hidden; cursor: pointer; position: relative;
+        }
         .cell-weekend { border-color: var(--weekend); }
         .cell-holiday { border-color: var(--holiday); }
         .day-number { font-weight: 800; font-size: 1.2rem; color: #4338ca; }
-        .holiday-label { color: var(--holiday); font-size: 0.6rem; font-weight: 800; text-align: center; text-transform: uppercase; }
+        .holiday-label { color: var(--holiday); font-size: 0.65rem; font-weight: 800; text-align: center; text-transform: uppercase; }
+
         .info-card { border-top: 1px solid #f1f5f9; width: 100%; padding: 4px 0; margin-top: 2px; text-align: center; }
-        .t-name { font-size: 0.75rem; font-weight: 800; color: #1e293b; display: block; text-transform: uppercase; }
+        .t-name { font-size: 0.7rem; font-weight: 800; color: #1e293b; display: block; text-transform: uppercase; }
         .u-name { font-size: 0.65rem; font-weight: 700; color: var(--accent); display: block; }
         .c-name { font-size: 0.65rem; color: #64748b; display: block; }
+
         .card { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 1.5rem; margin-bottom: 1rem; }
         .form-input { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; margin-bottom: 10px; }
+        
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
         .modal-overlay.active { display: flex; }
         .modal { background: white; padding: 25px; border-radius: 15px; width: 100%; max-width: 450px; }
+
         @media print {
             .no-print { display: none !important; }
             .calendar-grid { grid-template-columns: repeat(7, 1fr) !important; display: grid !important; height: 85vh; }
-            .calendar-cell { border-width: 1.5px; height: auto !important; flex: 1; border-color: #000 !important; }
+            .calendar-cell { border-width: 1px; height: auto !important; flex: 1; border-color: #000 !important; }
         }
     </style>
 </head>
 <body>
+
     <nav class="top-nav no-print">
-        <h1 style="font-size: 1.1rem; font-weight: 800;">VISITAS TÉCNICAS</h1>
+        <h1 style="font-size: 1.1rem; font-weight: 800; letter-spacing: -0.5px;">VISITAS TÉCNICAS</h1>
         <div class="nav-buttons">
             <button class="nav-btn active" id="btn-calendario" onclick="switchTab('calendario')">Calendário</button>
             <button class="nav-btn admin-only" id="btn-agendamentos" style="display:none;" onclick="switchTab('agendamentos')">Agendar</button>
@@ -61,6 +79,7 @@
             <button class="nav-btn" id="btn-urs" onclick="switchTab('urs')">URs</button>
         </div>
     </nav>
+
     <div class="action-bar no-print" style="padding: 10px 20px; background: white; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
         <div style="display:flex; gap:5px;">
             <button class="nav-btn" style="border:1px solid #ddd" onclick="prevMonth()">Anterior</button>
@@ -69,14 +88,16 @@
         <div style="display:flex; gap:5px;">
             <button class="nav-btn admin-only" style="background:#6366f1; color:white; display:none;" id="btnPrint" onclick="window.print()">🖨️ Imprimir</button>
             <button class="nav-btn admin-only" style="background: #10b981; color: white; display:none;" id="btnPass" onclick="changePasswordModal()">🔑 Senhas</button>
-            <button class="nav-btn" id="btnBackup" style="border:1px solid #ddd" onclick="exportJSON()">💾 Backup</button>
+            <button class="nav-btn admin-only" style="border:1px solid #ddd; display:none;" id="btnBackup" onclick="exportJSON()">💾 Backup</button>
         </div>
     </div>
+
     <main class="main-content">
         <div id="calendario" class="content-section active">
-            <h2 id="calendarTitle" style="text-align:center; margin-bottom:15px; text-transform:uppercase; font-weight: 800;"></h2>
+            <h2 id="calendarTitle" style="text-align:center; margin-bottom:15px; text-transform:uppercase; font-weight: 800; color: var(--primary);"></h2>
             <div class="calendar-grid" id="calendarGrid"></div>
         </div>
+
         <div id="agendamentos" class="content-section">
             <div class="card admin-only" style="display:none;">
                 <h3>Novo Agendamento</h3><br>
@@ -90,6 +111,7 @@
                 </form>
             </div>
         </div>
+
         <div id="tecnicos" class="content-section">
             <div class="card admin-only" style="display:none;">
                 <h3>Cadastrar Técnico</h3><br>
@@ -100,6 +122,7 @@
             </div>
             <div class="card"><table style="width:100%" id="tecnicosTable"></table></div>
         </div>
+
         <div id="urs" class="content-section">
             <div class="card admin-only" style="display:none;">
                 <h3>Unidades Regionais (URs)</h3><br>
@@ -115,6 +138,7 @@
             <div id="ursTable"></div>
         </div>
     </main>
+
     <div id="modalOverlay" class="modal-overlay" onclick="closeModal()">
         <div class="modal" onclick="event.stopPropagation()">
             <h2 id="modalTitle" style="margin-bottom:15px; font-weight: 800;">Detalhes</h2>
@@ -122,7 +146,9 @@
             <button class="nav-btn" style="width:100%; background:#f1f5f9;" onclick="closeModal()">Fechar</button>
         </div>
     </div>
+
     <script>
+        // CONFIGURAÇÕES FIREBASE INTEGRADAS
         const firebaseConfig = {
             apiKey: "AIzaSyBQK1QbzDjQL_CwG3S7d1ClVykNcekmVn8",
             authDomain: "escala-vistas.firebaseapp.com",
@@ -132,29 +158,36 @@
             messagingSenderId: "660320279802",
             appId: "1:660320279802:web:7160ef09c273770fd6bd4"
         };
+        
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+
         let localData = { technicians: [], urs: [], agendamentos: [] };
         const FERIADOS = { '01-01': 'Ano Novo', '19-03': 'São José', '25-03': 'Data Magna CE', '13-04': 'Aniv. Fortaleza', '01-05': 'Trabalho', '25-12': 'Natal' };
         let user = null;
         let currentDate = new Date();
 
+        // LOGIN COM RECUPERAÇÃO DE ACESSO ADMIN
         function login() {
             db.ref('config/users').once('value', (snap) => {
                 const usersFromDb = snap.val() || {};
-                // Garante que 'admin' e 'tecnico' existam, priorizando o banco
+                // FALLBACK: Garante que admin sempre tenha acesso mesmo se o banco estiver vazio
                 const users = { "admin": "123", "tecnico": "456", ...usersFromDb };
                 
                 const u = prompt("Usuário:"); const s = prompt("Senha:");
                 if (users[u] && users[u] === s) {
                     user = { id: u, nivel: (u === 'admin' ? 'total' : 'leitura') };
+                    
                     if (user.nivel === "total") {
                         document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'block');
                         document.getElementById('btnPrint').style.display = 'block';
                         document.getElementById('btnPass').style.display = 'block';
                         document.getElementById('btnBackup').style.display = 'block';
                     } else {
+                        // RESTRICÃO TÉCNICO: Esconde Backup e Impressão
                         document.getElementById('btnBackup').style.display = 'none';
+                        document.getElementById('btnPrint').style.display = 'none';
+                        document.getElementById('btnPass').style.display = 'none';
                     }
                     startSync();
                 } else { alert("Acesso negado"); location.reload(); }
@@ -199,8 +232,14 @@
             if (user.nivel !== 'total') return;
             const alvo = prompt("Alterar senha de qual usuário? (admin ou tecnico)");
             if (alvo === 'admin' || alvo === 'tecnico') {
-                const nova = prompt("Nova senha:");
-                if(nova) db.ref('config/users/' + alvo).set(nova).then(() => alert("Senha alterada com sucesso!"));
+                const nova = prompt("Digite a nova senha para " + alvo + ":");
+                if(nova) {
+                    db.ref('config/users/' + alvo).set(nova).then(() => {
+                        alert("Senha de " + alvo + " alterada com sucesso!");
+                    }).catch(err => alert("Erro ao salvar: " + err));
+                }
+            } else {
+                alert("Usuário inválido. Digite 'admin' ou 'tecnico'.");
             }
         }
 
@@ -219,7 +258,7 @@
 
         function deleteItem(path, id) { if(user.nivel === 'total' && confirm('Excluir item definitivamente?')) db.ref(path + '/' + id).remove(); }
         function addTecnico(e) { e.preventDefault(); if(user.nivel === 'total') { const id = Date.now().toString(); db.ref('technicians/' + id).set({ id, nome: document.getElementById('tecnicoNomeInput').value }); document.getElementById('tecnicoNomeInput').value = ''; } }
-        function addUR(e) { e.preventDefault(); if(user.nivel === 'total') { const id = Date.now().toString(); const cidades = Array.from(document.querySelectorAll('.cidade-input')).map(i => ({ id: Math.random().toString(36).substr(2,9), nome: i.value })); db.ref('urs/' + id).set({ id, nome: document.getElementById('urNomeInput').value, cidades }); document.getElementById('urNomeInput').value = ''; document.getElementById('cidadesInputContainer').innerHTML = '<input type="text" class="form-input cidade-input" placeholder="Nome da cidade">'; } }
+        function addUR(e) { e.preventDefault(); if(user.nivel === 'total') { const id = Date.now().toString(); const cidades = Array.from(document.querySelectorAll('.cidade-input')).map(i => ({ id: Math.random().toString(36).substr(2,9), nome: i.value })); db.ref('urs/' + id).set({ id, nome: document.getElementById('urNomeInput').value, cidades }); document.getElementById('urNomeInput').value = ''; } }
         function addAgendamento(e) { e.preventDefault(); if(user.nivel === 'total') { const id = Date.now().toString(); db.ref('agendamentos/' + id).set({ id, tecnicoId: document.getElementById('tecnicoSelect').value, urId: document.getElementById('urSelect').value, cidadeId: document.getElementById('cidadeSelect').value, data: document.getElementById('dataInput').value, atividades: document.getElementById('atividadesInput').value }); switchTab('calendario'); } }
         function quickSchedule(d) { if(user.nivel === 'total') { switchTab('agendamentos'); document.getElementById('dataInput').value = d; } }
         function openDetail(id) {
@@ -237,6 +276,7 @@
         function updateSelects() { document.getElementById('tecnicoSelect').innerHTML = localData.technicians.map(t => `<option value="${t.id}">${t.nome}</option>`).join(''); document.getElementById('urSelect').innerHTML = localData.urs.map(u => `<option value="${u.id}">${u.nome}</option>`).join(''); updateCidades(); }
         function updateCidades() { const ur = localData.urs.find(u => u.id === document.getElementById('urSelect').value); document.getElementById('cidadeSelect').innerHTML = ur ? ur.cidades.map(c => `<option value="${c.id}">${c.nome}</option>`).join('') : ''; }
         function exportJSON() { const d = { techs: localData.technicians, urs: localData.urs, ags: localData.agendamentos }, b = new Blob([JSON.stringify(d)], {type:'application/json'}), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'escala_backup.json'; a.click(); }
+        
         window.onload = login;
     </script>
 </body>
