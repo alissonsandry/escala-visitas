@@ -18,11 +18,25 @@
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', sans-serif; }
         body { background-color: var(--bg-body); color: #1e293b; line-height: 1.5; }
 
-        /* Navegação e Responsividade */
+        /* Navegação e Responsividade Principal */
         .top-nav { background: var(--white); border-bottom: 1px solid #e2e8f0; padding: 1rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
         .nav-buttons { display: flex; gap: 5px; }
-        .nav-btn { padding: 0.6rem 1rem; font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer; background: transparent; color: #64748b; border: 1px solid transparent; transition: 0.2s; }
+        .nav-btn { padding: 0.6rem 1rem; font-size: 13px; font-weight: 600; border-radius: 6px; cursor: pointer; background: transparent; color: #64748b; border: 1px solid transparent; transition: 0.2s; white-space: nowrap; }
         .nav-btn.active { background: var(--primary); color: white; }
+
+        /* Ajuste da Barra de Ações para Mobile (Admin Buttons) */
+        .action-bar { 
+            padding: 10px 20px; 
+            background: white; 
+            border-bottom: 1px solid #eee; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            gap: 10px; 
+        }
+
+        .action-group { display: flex; gap: 5px; flex-wrap: wrap; }
 
         .main-content { padding: 15px; max-width: 1600px; margin: 0 auto; }
         .content-section { display: none; }
@@ -37,6 +51,9 @@
             .t-name { font-size: 0.55rem !important; }
             .u-name, .c-name { font-size: 0.5rem !important; }
             .nav-buttons { display: grid; grid-template-columns: 1fr 1fr; width: 100%; }
+            .action-bar { justify-content: center; padding: 10px; }
+            .action-group { justify-content: center; width: 100%; }
+            .top-nav h1 { width: 100%; text-align: center; margin-bottom: 5px; }
         }
 
         .calendar-cell {
@@ -47,7 +64,7 @@
         .cell-weekend { border-color: var(--weekend); }
         .cell-holiday { border-color: var(--holiday); }
         .day-number { font-weight: 800; font-size: 1.2rem; color: #4338ca; }
-        .holiday-label { color: var(--holiday); font-size: 0.65rem; font-weight: 800; text-align: center; text-transform: uppercase; }
+        .holiday-label { color: var(--holiday); font-size: 0.6rem; font-weight: 800; text-align: center; text-transform: uppercase; }
 
         .info-card { border-top: 1px solid #f1f5f9; width: 100%; padding: 4px 0; margin-top: 2px; text-align: center; }
         .t-name { font-size: 0.7rem; font-weight: 800; color: #1e293b; display: block; text-transform: uppercase; }
@@ -64,7 +81,7 @@
         @media print {
             .no-print { display: none !important; }
             .calendar-grid { grid-template-columns: repeat(7, 1fr) !important; display: grid !important; height: 85vh; }
-            .calendar-cell { border-width: 1px; height: auto !important; flex: 1; border-color: #000 !important; }
+            .calendar-cell { border-width: 1.5px; height: auto !important; flex: 1; border-color: #000 !important; }
         }
     </style>
 </head>
@@ -80,12 +97,12 @@
         </div>
     </nav>
 
-    <div class="action-bar no-print" style="padding: 10px 20px; background: white; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
-        <div style="display:flex; gap:5px;">
+    <div class="action-bar no-print">
+        <div class="action-group">
             <button class="nav-btn" style="border:1px solid #ddd" onclick="prevMonth()">Anterior</button>
             <button class="nav-btn" style="border:1px solid #ddd" onclick="nextMonth()">Próximo</button>
         </div>
-        <div style="display:flex; gap:5px;">
+        <div class="action-group">
             <button class="nav-btn admin-only" style="background:#6366f1; color:white; display:none;" id="btnPrint" onclick="window.print()">🖨️ Imprimir</button>
             <button class="nav-btn admin-only" style="background: #10b981; color: white; display:none;" id="btnPass" onclick="changePasswordModal()">🔑 Senhas</button>
             <button class="nav-btn admin-only" style="border:1px solid #ddd; display:none;" id="btnBackup" onclick="exportJSON()">💾 Backup</button>
@@ -131,7 +148,7 @@
                     <div id="cidadesInputContainer" style="margin-bottom: 10px;">
                         <input type="text" class="form-input cidade-input" placeholder="Cidade">
                     </div>
-                    <button type="button" class="nav-btn" style="border:1px solid #ddd; width: 100%;" onclick="addCidadeInput()">+ Cidade</button>
+                    <button type="button" class="nav-btn" style="border:1px solid #ddd; width: 100%;" onclick="addCidadeInput()">+ Adicionar Cidade</button>
                     <button type="submit" class="nav-btn" style="background:var(--primary); color:white; width:100%; margin-top:10px;">Salvar UR</button>
                 </form>
             </div>
@@ -143,12 +160,11 @@
         <div class="modal" onclick="event.stopPropagation()">
             <h2 id="modalTitle" style="margin-bottom:15px; font-weight: 800;">Detalhes</h2>
             <div id="modalBody"></div><br>
-            <button class="nav-btn" style="width:100%; background:#f1f5f9;" onclick="closeModal()">Fechar</button>
+            <button class="nav-btn" style="width:100%; background:#f1f5f9; color: var(--primary);" onclick="closeModal()">Fechar</button>
         </div>
     </div>
 
     <script>
-        // CONFIGURAÇÕES FIREBASE INTEGRADAS
         const firebaseConfig = {
             apiKey: "AIzaSyBQK1QbzDjQL_CwG3S7d1ClVykNcekmVn8",
             authDomain: "escala-vistas.firebaseapp.com",
@@ -167,24 +183,20 @@
         let user = null;
         let currentDate = new Date();
 
-        // LOGIN COM RECUPERAÇÃO DE ACESSO ADMIN
         function login() {
             db.ref('config/users').once('value', (snap) => {
                 const usersFromDb = snap.val() || {};
-                // FALLBACK: Garante que admin sempre tenha acesso mesmo se o banco estiver vazio
                 const users = { "admin": "123", "tecnico": "456", ...usersFromDb };
                 
                 const u = prompt("Usuário:"); const s = prompt("Senha:");
                 if (users[u] && users[u] === s) {
                     user = { id: u, nivel: (u === 'admin' ? 'total' : 'leitura') };
-                    
                     if (user.nivel === "total") {
                         document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'block');
                         document.getElementById('btnPrint').style.display = 'block';
                         document.getElementById('btnPass').style.display = 'block';
                         document.getElementById('btnBackup').style.display = 'block';
                     } else {
-                        // RESTRICÃO TÉCNICO: Esconde Backup e Impressão
                         document.getElementById('btnBackup').style.display = 'none';
                         document.getElementById('btnPrint').style.display = 'none';
                         document.getElementById('btnPass').style.display = 'none';
@@ -232,14 +244,8 @@
             if (user.nivel !== 'total') return;
             const alvo = prompt("Alterar senha de qual usuário? (admin ou tecnico)");
             if (alvo === 'admin' || alvo === 'tecnico') {
-                const nova = prompt("Digite a nova senha para " + alvo + ":");
-                if(nova) {
-                    db.ref('config/users/' + alvo).set(nova).then(() => {
-                        alert("Senha de " + alvo + " alterada com sucesso!");
-                    }).catch(err => alert("Erro ao salvar: " + err));
-                }
-            } else {
-                alert("Usuário inválido. Digite 'admin' ou 'tecnico'.");
+                const nova = prompt("Nova senha para " + alvo + ":");
+                if(nova) db.ref('config/users/' + alvo).set(nova).then(() => alert("Senha alterada!"));
             }
         }
 
@@ -256,7 +262,7 @@
                 ${user.nivel === 'total' ? `<button class="nav-btn" style="color:red" onclick="deleteItem('urs','${u.id}')">Excluir</button>` : ''}</div>`).join('');
         }
 
-        function deleteItem(path, id) { if(user.nivel === 'total' && confirm('Excluir item definitivamente?')) db.ref(path + '/' + id).remove(); }
+        function deleteItem(path, id) { if(user.nivel === 'total' && confirm('Excluir?')) db.ref(path + '/' + id).remove(); }
         function addTecnico(e) { e.preventDefault(); if(user.nivel === 'total') { const id = Date.now().toString(); db.ref('technicians/' + id).set({ id, nome: document.getElementById('tecnicoNomeInput').value }); document.getElementById('tecnicoNomeInput').value = ''; } }
         function addUR(e) { e.preventDefault(); if(user.nivel === 'total') { const id = Date.now().toString(); const cidades = Array.from(document.querySelectorAll('.cidade-input')).map(i => ({ id: Math.random().toString(36).substr(2,9), nome: i.value })); db.ref('urs/' + id).set({ id, nome: document.getElementById('urNomeInput').value, cidades }); document.getElementById('urNomeInput').value = ''; } }
         function addAgendamento(e) { e.preventDefault(); if(user.nivel === 'total') { const id = Date.now().toString(); db.ref('agendamentos/' + id).set({ id, tecnicoId: document.getElementById('tecnicoSelect').value, urId: document.getElementById('urSelect').value, cidadeId: document.getElementById('cidadeSelect').value, data: document.getElementById('dataInput').value, atividades: document.getElementById('atividadesInput').value }); switchTab('calendario'); } }
@@ -276,7 +282,6 @@
         function updateSelects() { document.getElementById('tecnicoSelect').innerHTML = localData.technicians.map(t => `<option value="${t.id}">${t.nome}</option>`).join(''); document.getElementById('urSelect').innerHTML = localData.urs.map(u => `<option value="${u.id}">${u.nome}</option>`).join(''); updateCidades(); }
         function updateCidades() { const ur = localData.urs.find(u => u.id === document.getElementById('urSelect').value); document.getElementById('cidadeSelect').innerHTML = ur ? ur.cidades.map(c => `<option value="${c.id}">${c.nome}</option>`).join('') : ''; }
         function exportJSON() { const d = { techs: localData.technicians, urs: localData.urs, ags: localData.agendamentos }, b = new Blob([JSON.stringify(d)], {type:'application/json'}), a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'escala_backup.json'; a.click(); }
-        
         window.onload = login;
     </script>
 </body>
