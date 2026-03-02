@@ -226,16 +226,25 @@
         let userLevel = null;
         let currentDate = new Date();
 
+        // --- SISTEMA DE LOGIN BLINDADO ---
         function validateLogin() {
-            const u = document.getElementById('userInput').value;
-            const s = document.getElementById('passInput').value;
+            // .trim() remove espaços acidentais antes e depois do que foi digitado
+            const u = document.getElementById('userInput').value.trim();
+            const s = document.getElementById('passInput').value.trim();
+            
             db.ref('config/users').once('value', (snap) => {
-                const usersFromDb = snap.val() || { "admin": { senha: "123", nivel: "total" }, "tecnico": { senha: "456", nivel: "leitura" } };
-                const userData = usersFromDb[u];
+                let usersFromDb = snap.val() || { "admin": { senha: "123", nivel: "total" }, "tecnico": { senha: "456", nivel: "leitura" } };
+                
+                // Busca o usuário ignorando maiúsculas e minúsculas
+                let userKey = Object.keys(usersFromDb).find(k => k.toLowerCase() === u.toLowerCase());
+                let userData = userKey ? usersFromDb[userKey] : null;
+
                 if (userData && (userData.senha === s || userData === s)) {
-                    userLevel = (userData.nivel || (u === 'admin' ? 'total' : 'leitura'));
+                    userLevel = (userData.nivel || (userKey.toLowerCase() === 'admin' ? 'total' : 'leitura'));
+                    
                     document.getElementById('loginScreen').style.display = 'none';
                     document.getElementById('appContent').style.display = 'block';
+                    
                     if (userLevel === "total") {
                         document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'block');
                         document.getElementById('btnPrint').style.display = 'block';
@@ -246,7 +255,9 @@
                         document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
                     }
                     startSync();
-                } else { alert("Usuário ou senha incorretos."); }
+                } else { 
+                    alert("Usuário ou senha incorretos."); 
+                }
             });
         }
 
@@ -257,8 +268,6 @@
             db.ref('/').on('value', (snapshot) => {
                 const data = snapshot.val() || {};
                 
-                // Força a inserção de um ID válido a partir da chave do Firebase, 
-                // corrigindo URs antigas que possam ter sido salvas manualmente sem ID.
                 localData.technicians = Object.keys(data.technicians || {}).map(key => {
                     let obj = data.technicians[key];
                     return typeof obj === 'object' ? { id: key, ...obj } : { id: key, nome: obj };
@@ -402,7 +411,8 @@
             const nome = prompt("Nome do novo usuário:");
             const senha = prompt("Senha:");
             const niv = confirm("Será administrador?") ? "total" : "leitura";
-            if(nome && senha) db.ref('config/users/' + nome).set({ senha, nivel: niv }).then(() => alert("Usuário criado!"));
+            // O nome também é salvo removendo espaços extras
+            if(nome && senha) db.ref('config/users/' + nome.trim()).set({ senha: senha.trim(), nivel: niv }).then(() => alert("Usuário criado!"));
         }
 
         function renderTecnicosTable() {
@@ -414,7 +424,6 @@
                 let htmlCidades = '';
                 if(u.cidades) {
                     const arrayCidades = Array.isArray(u.cidades) ? u.cidades : Object.values(u.cidades);
-                    // Mapeamento à prova de falhas para dados antigos
                     htmlCidades = arrayCidades.map(c => typeof c === 'string' ? c : c.nome).join(', ');
                 }
                 return `<div class="card" style="display:flex; justify-content:space-between; align-items:center"><div><strong>${u.nome}</strong><br><small>${htmlCidades}</small></div><div class="no-print">${userLevel === 'total' ? `<button class="nav-btn" style="color:red" onclick="deleteItem('urs','${u.id}')">Excluir</button>` : ''}</div></div>`;
@@ -437,14 +446,11 @@
             urSelect.innerHTML = '<option value="" disabled selected>Selecione a UR</option>' + 
                 localData.urs.map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
 
-            // Restaura as opções selecionadas se elas existirem
             if (currentTec) tecSelect.value = currentTec;
             if (currentUr) urSelect.value = currentUr;
 
-            // Chama a atualização das cidades imediatamente
             updateCidades();
             
-            // Restaura a cidade se ainda for válida na lista gerada
             if (currentCidade) {
                 const exists = Array.from(cidSelect.options).some(opt => opt.value === currentCidade);
                 if (exists) {
@@ -456,23 +462,19 @@
         function updateCidades() {
             const urId = document.getElementById('urSelect').value;
             
-            // Busca a UR garantindo que tipo (texto vs numero) não quebre a lógica
             const ur = localData.urs.find(u => String(u.id) === String(urId) || u.nome === urId);
             
             let html = '<option value="" disabled selected>Selecione a Cidade</option>';
             
             if (ur && ur.cidades) {
-                // Previne falha caso Firebase tenha convertido a lista em Objeto
                 const listaCidades = Array.isArray(ur.cidades) ? ur.cidades : Object.values(ur.cidades);
                 
-                // Mapeia e corrige cidades antigas salvas como texto simples
                 const cidadesValidas = listaCidades.map(c => {
                     if (typeof c === 'string') return { id: c, nome: c }; 
                     return c;
                 }).filter(c => c && c.nome);
                 
                 if(cidadesValidas.length > 0) {
-                    // ID serve como value, se não tiver ID usa o próprio nome
                     html += cidadesValidas.map(c => `<option value="${c.id || c.nome}">${c.nome}</option>`).join('');
                 } else {
                     html = '<option value="" disabled selected>Nenhuma cidade cadastrada nesta UR</option>';
