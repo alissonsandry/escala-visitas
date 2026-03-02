@@ -226,39 +226,67 @@
         let userLevel = null;
         let currentDate = new Date();
 
-        // --- SISTEMA DE LOGIN BLINDADO ---
+        // --- SISTEMA DE LOGIN COM BLINDAGEM E TRATAMENTO DE ERROS ---
         function validateLogin() {
-            // .trim() remove espaços acidentais antes e depois do que foi digitado
-            const u = document.getElementById('userInput').value.trim();
-            const s = document.getElementById('passInput').value.trim();
-            
-            db.ref('config/users').once('value', (snap) => {
-                let usersFromDb = snap.val() || { "admin": { senha: "123", nivel: "total" }, "tecnico": { senha: "456", nivel: "leitura" } };
-                
-                // Busca o usuário ignorando maiúsculas e minúsculas
-                let userKey = Object.keys(usersFromDb).find(k => k.toLowerCase() === u.toLowerCase());
-                let userData = userKey ? usersFromDb[userKey] : null;
+            try {
+                const rawUser = document.getElementById('userInput').value;
+                const rawPass = document.getElementById('passInput').value;
 
-                if (userData && (userData.senha === s || userData === s)) {
-                    userLevel = (userData.nivel || (userKey.toLowerCase() === 'admin' ? 'total' : 'leitura'));
-                    
-                    document.getElementById('loginScreen').style.display = 'none';
-                    document.getElementById('appContent').style.display = 'block';
-                    
-                    if (userLevel === "total") {
-                        document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'block');
-                        document.getElementById('btnPrint').style.display = 'block';
-                        document.getElementById('btnPass').style.display = 'block';
-                        document.getElementById('btnUser').style.display = 'block';
-                        document.getElementById('btnBackup').style.display = 'block';
-                    } else {
-                        document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
-                    }
-                    startSync();
-                } else { 
-                    alert("Usuário ou senha incorretos."); 
+                if (!rawUser || !rawPass) {
+                    alert("Por favor, preencha o usuário e a senha.");
+                    return;
                 }
-            });
+
+                const u = rawUser.trim().toLowerCase();
+                const s = rawPass.trim();
+
+                db.ref('config/users').once('value').then((snap) => {
+                    let usersFromDb = snap.val();
+                    
+                    // Estrutura de fallback caso o banco esteja vazio
+                    if (!usersFromDb) {
+                        usersFromDb = { "admin": { senha: "123", nivel: "total" }, "tecnico": { senha: "456", nivel: "leitura" } };
+                    }
+                    
+                    let userData = null;
+                    let foundKey = null;
+
+                    // Laço de repetição seguro para encontrar o usuário
+                    for (let key in usersFromDb) {
+                        if (String(key).toLowerCase() === u) {
+                            userData = usersFromDb[key];
+                            foundKey = key;
+                            break;
+                        }
+                    }
+
+                    if (userData && (userData.senha === s || userData === s)) {
+                        userLevel = (userData.nivel || (foundKey.toLowerCase() === 'admin' ? 'total' : 'leitura'));
+                        
+                        document.getElementById('loginScreen').style.display = 'none';
+                        document.getElementById('appContent').style.display = 'block';
+                        
+                        if (userLevel === "total") {
+                            document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'block');
+                            document.getElementById('btnPrint').style.display = 'block';
+                            document.getElementById('btnPass').style.display = 'block';
+                            document.getElementById('btnUser').style.display = 'block';
+                            document.getElementById('btnBackup').style.display = 'block';
+                        } else {
+                            document.querySelectorAll('.admin-only').forEach(e => e.style.display = 'none');
+                        }
+                        startSync();
+                    } else { 
+                        alert("Usuário ou senha incorretos."); 
+                    }
+                }).catch(error => {
+                    alert("Erro de conexão com o Banco de Dados: " + error.message);
+                    console.error("Firebase Error: ", error);
+                });
+            } catch (err) {
+                alert("Erro interno na aplicação: " + err.message);
+                console.error("Internal Error: ", err);
+            }
         }
 
         function logout() { location.reload(); }
@@ -312,7 +340,6 @@
                 let h = `<div class="${cl}" onclick="quickSchedule('${ds}')"><span class="day-number">${day}</span>${fn ? `<div class="holiday-label">${fn}</div>` : ''}`;
                 
                 da.forEach(a => {
-                    // Garantir conversão para string para buscas de IDs exatas
                     const t = localData.technicians.find(x => String(x.id) === String(a.tecnicoId));
                     const u = localData.urs.find(x => String(x.id) === String(a.urId));
                     
@@ -411,7 +438,6 @@
             const nome = prompt("Nome do novo usuário:");
             const senha = prompt("Senha:");
             const niv = confirm("Será administrador?") ? "total" : "leitura";
-            // O nome também é salvo removendo espaços extras
             if(nome && senha) db.ref('config/users/' + nome.trim()).set({ senha: senha.trim(), nivel: niv }).then(() => alert("Usuário criado!"));
         }
 
@@ -430,7 +456,6 @@
             }).join('');
         }
 
-        // --- SISTEMA CORRIGIDO DE CASCATA PARA SELECTS ---
         function updateSelects() {
             const tecSelect = document.getElementById('tecnicoSelect');
             const urSelect = document.getElementById('urSelect');
