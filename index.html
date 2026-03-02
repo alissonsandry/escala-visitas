@@ -282,14 +282,31 @@
             document.getElementById('calendarTitle').textContent = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
             grid.innerHTML = '';
             ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'].forEach(d => grid.innerHTML += `<div class="day-label-header" style="text-align:center; font-size:0.7rem; font-weight:800; color:#64748b; padding-bottom:5px;">${d}</div>`);
+            
             for (let i = 0; i < firstDay; i++) grid.innerHTML += '<div class="calendar-cell no-print" style="visibility: hidden;"></div>';
+            
             for (let day = 1; day <= daysInMonth; day++) {
-                const d = new Date(year, month, day), dm = `${String(day).padStart(2,'0')}-${String(month+1).padStart(2,'0')}`, ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-                const fn = FERIADOS[dm], iw = d.getDay() === 0 || d.getDay() === 6, da = localData.agendamentos.filter(a => a.data === ds);
+                const d = new Date(year, month, day);
+                const dm = `${String(day).padStart(2,'0')}-${String(month+1).padStart(2,'0')}`;
+                const ds = `${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                const fn = FERIADOS[dm];
+                const iw = d.getDay() === 0 || d.getDay() === 6;
+                const da = localData.agendamentos.filter(a => a.data === ds);
+                
                 let cl = "calendar-cell" + (iw ? " cell-weekend" : "") + (fn ? " cell-holiday" : "");
                 let h = `<div class="${cl}" onclick="quickSchedule('${ds}')"><span class="day-number">${day}</span>${fn ? `<div class="holiday-label">${fn}</div>` : ''}`;
+                
                 da.forEach(a => {
-                    const t = localData.technicians.find(x => x.id === a.tecnicoId), u = localData.urs.find(x => x.id === a.urId), c = u?.cidades.find(x => x.id === a.cidadeId);
+                    const t = localData.technicians.find(x => x.id == a.tecnicoId);
+                    const u = localData.urs.find(x => x.id == a.urId);
+                    
+                    let c = null;
+                    if (u && u.cidades) {
+                        // Força conversão segura de Firebase Object para Array
+                        const cidadesArray = Array.isArray(u.cidades) ? u.cidades : Object.values(u.cidades);
+                        c = cidadesArray.find(x => x.id == a.cidadeId);
+                    }
+                    
                     h += `<div class="info-card" onclick="event.stopPropagation(); openDetail('${a.id}')"><span class="t-name">${t?.nome || '---'}</span><span class="u-name">${u?.nome || '---'}</span><span class="c-name">${c?.nome || '---'}</span></div>`;
                 });
                 grid.innerHTML += h + `</div>`;
@@ -304,7 +321,17 @@
         }
 
         function openDetail(id) {
-            const a = localData.agendamentos.find(x => x.id === id), t = localData.technicians.find(x => x.id === a.tecnicoId), u = localData.urs.find(x => x.id === a.urId), c = u?.cidades.find(x => x.id === a.cidadeId);
+            const a = localData.agendamentos.find(x => x.id == id);
+            const t = localData.technicians.find(x => x.id == a.tecnicoId);
+            const u = localData.urs.find(x => x.id == a.urId);
+            
+            let c = null;
+            if (u && u.cidades) {
+                // Força conversão segura de Firebase Object para Array
+                const cidadesArray = Array.isArray(u.cidades) ? u.cidades : Object.values(u.cidades);
+                c = cidadesArray.find(x => x.id == a.cidadeId);
+            }
+            
             document.getElementById('modalTitle').innerText = "Detalhes da Visita";
             document.getElementById('modalBody').innerHTML = `<p><strong>Técnico:</strong> ${t?.nome}</p><p><strong>Local:</strong> ${u?.nome} - ${c?.nome}</p><p><strong>Data:</strong> ${a.data}</p><br><div style="background:#f1f5f9; padding:15px; border-radius:8px; font-size:13px; white-space:pre-wrap;">${a.atividades}</div>`;
             if(userLevel === 'total') document.getElementById('modalBody').innerHTML += `<br><button class="nav-btn no-print" style="color:red; border:1px solid red; width:100%" onclick="deleteItem('agendamentos','${id}')">Excluir Registro</button>`;
@@ -328,9 +355,19 @@
         function addUR(e) { 
             e.preventDefault(); 
             const id = Date.now().toString();
-            const cidades = Array.from(document.querySelectorAll('.cidade-input')).map(i => ({ id: Math.random().toString(36).substr(2,9), nome: i.value })); 
+            const cidadesInputs = Array.from(document.querySelectorAll('.cidade-input'));
+            
+            // Filtra inputs vazios para não criar arrays quebrados no Firebase
+            const cidades = cidadesInputs.filter(i => i.value.trim() !== '').map(i => ({ 
+                id: Math.random().toString(36).substr(2,9), 
+                nome: i.value 
+            })); 
+            
             db.ref('urs/' + id).set({ id, nome: document.getElementById('urNomeInput').value, cidades });
+            
+            // Limpa o formulário corretamente
             document.getElementById('urNomeInput').value = ''; 
+            document.getElementById('cidadesInputContainer').innerHTML = '<input type="text" class="form-input cidade-input" placeholder="Cidade">';
         }
 
         function addAgendamento(e) { 
@@ -370,56 +407,34 @@
         }
 
         function renderURsTable() {
-            document.getElementById('ursTable').innerHTML = localData.urs.map(u => `<div class="card" style="display:flex; justify-content:space-between; align-items:center"><div><strong>${u.nome}</strong><br><small>${u.cidades.map(c => c.nome).join(', ')}</small></div><div class="no-print">${userLevel === 'total' ? `<button class="nav-btn" style="color:red" onclick="deleteItem('urs','${u.id}')">Excluir</button>` : ''}</div></div>`).join('');
+            document.getElementById('ursTable').innerHTML = localData.urs.map(u => {
+                // Força conversão segura de Firebase Object para Array na tabela de visualização
+                const cidadesArray = u.cidades ? (Array.isArray(u.cidades) ? u.cidades : Object.values(u.cidades)) : [];
+                return `<div class="card" style="display:flex; justify-content:space-between; align-items:center"><div><strong>${u.nome}</strong><br><small>${cidadesArray.map(c => c.nome).join(', ')}</small></div><div class="no-print">${userLevel === 'total' ? `<button class="nav-btn" style="color:red" onclick="deleteItem('urs','${u.id}')">Excluir</button>` : ''}</div></div>`;
+            }).join('');
         }
 
-        // --- NOVA LÓGICA DE SELECTS CORRIGIDA ---
+        // --- LÓGICA DE SELECTS CORRIGIDA COM PREVENÇÃO DE FIREBASE OBJECT COERCION ---
         function updateSelects() {
             const currentTec = document.getElementById('tecnicoSelect').value;
             const currentUr = document.getElementById('urSelect').value;
+            const currentCidade = document.getElementById('cidadeSelect').value;
 
-            document.getElementById('tecnicoSelect').innerHTML = localData.technicians.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+            document.getElementById('tecnicoSelect').innerHTML = '<option value="" disabled selected>Selecione o Técnico</option>' + localData.technicians.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
             document.getElementById('urSelect').innerHTML = '<option value="" disabled selected>Selecione a UR</option>' + localData.urs.map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
 
             if (currentTec) document.getElementById('tecnicoSelect').value = currentTec;
             if (currentUr) document.getElementById('urSelect').value = currentUr;
 
             updateCidades();
+            
+            // Tenta restaurar a cidade se o usuário estiver no meio da seleção e o banco sincronizar
+            if (currentCidade) document.getElementById('cidadeSelect').value = currentCidade;
         }
 
         function updateCidades() {
             const urId = document.getElementById('urSelect').value;
-            const ur = localData.urs.find(u => u.id === urId);
-            document.getElementById('cidadeSelect').innerHTML = ur && ur.cidades ? 
-                ur.cidades.map(c => `<option value="${c.id}">${c.nome}</option>`).join('') : '<option value="">Sem cidades cadastradas</option>';
-        }
-
-        function addCidadeInput() { 
-            const inp = document.createElement('input');
-            inp.className = 'form-input cidade-input'; 
-            inp.placeholder = 'Cidade'; 
-            document.getElementById('cidadesInputContainer').appendChild(inp); 
-        }
-
-        function switchTab(id) { 
-            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active')); 
-            document.getElementById(id).classList.add('active'); 
-            if(document.getElementById('btn-'+id)) document.getElementById('btn-'+id).classList.add('active'); 
-        }
-
-        function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
-        function prevMonth() { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); }
-        function nextMonth() { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); }
-
-        function exportJSON() { 
-            const d = { techs: localData.technicians, urs: localData.urs, ags: localData.agendamentos };
-            const b = new Blob([JSON.stringify(d)], {type:'application/json'}); 
-            const a = document.createElement('a'); 
-            a.href = URL.createObjectURL(b); 
-            a.download = 'backup_escala.json'; 
-            a.click();
-        }
-    </script>
-</body>
-</html>
+            // O operador == garante que mesmo que o id no banco seja um número, a busca encontre o valor em texto
+            const ur = localData.urs.find(u => u.id == urId);
+            
+            let html =
