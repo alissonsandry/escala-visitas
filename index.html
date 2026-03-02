@@ -186,11 +186,11 @@
                 <div class="card admin-only">
                     <h3>URs</h3><br>
                     <form onsubmit="addUR(event)">
-                        <input type="text" id="urNomeInput" class="form-input" placeholder="Nome UR" required>
+                        <input type="text" id="urNomeInput" class="form-input" placeholder="Nome UR (Ex: 9ª UR)" required>
                         <div id="cidadesInputContainer" style="margin-bottom: 10px;">
-                            <input type="text" class="form-input cidade-input" placeholder="Cidade">
+                            <input type="text" class="form-input cidade-input" placeholder="Nome da Cidade">
                         </div>
-                        <button type="button" class="nav-btn" style="border:1px solid #ddd; width: 100%;" onclick="addCidadeInput()">+ Cidade</button>
+                        <button type="button" class="nav-btn" style="border:1px solid #ddd; width: 100%;" onclick="addCidadeInput()">+ Adicionar outra cidade nesta UR</button>
                         <button type="submit" class="nav-btn" style="background:var(--primary); color:white; width:100%; margin-top:10px;">Salvar UR</button>
                     </form>
                 </div>
@@ -226,7 +226,6 @@
         let userLevel = null;
         let currentDate = new Date();
 
-        // --- SISTEMA DE LOGIN COM BLINDAGEM E TRATAMENTO DE ERROS ---
         function validateLogin() {
             try {
                 const rawUser = document.getElementById('userInput').value;
@@ -243,7 +242,6 @@
                 db.ref('config/users').once('value').then((snap) => {
                     let usersFromDb = snap.val();
                     
-                    // Estrutura de fallback caso o banco esteja vazio
                     if (!usersFromDb) {
                         usersFromDb = { "admin": { senha: "123", nivel: "total" }, "tecnico": { senha: "456", nivel: "leitura" } };
                     }
@@ -251,7 +249,6 @@
                     let userData = null;
                     let foundKey = null;
 
-                    // Laço de repetição seguro para encontrar o usuário
                     for (let key in usersFromDb) {
                         if (String(key).toLowerCase() === u) {
                             userData = usersFromDb[key];
@@ -281,17 +278,14 @@
                     }
                 }).catch(error => {
                     alert("Erro de conexão com o Banco de Dados: " + error.message);
-                    console.error("Firebase Error: ", error);
                 });
             } catch (err) {
                 alert("Erro interno na aplicação: " + err.message);
-                console.error("Internal Error: ", err);
             }
         }
 
         function logout() { location.reload(); }
 
-        // --- ATUALIZAÇÃO BLINDADA DO BANCO DE DADOS ---
         function startSync() {
             db.ref('/').on('value', (snapshot) => {
                 const data = snapshot.val() || {};
@@ -386,6 +380,27 @@
             } 
         }
 
+        // --- NOVA FUNÇÃO: REMOVER CIDADE INDIVIDUAL ---
+        function removeCidadeFromUR(urId, cidadeId) {
+            if(!confirm('Deseja remover esta cidade da UR?')) return;
+            
+            const ur = localData.urs.find(u => String(u.id) === String(urId));
+            if(!ur || !ur.cidades) return;
+            
+            const arrayCidades = Array.isArray(ur.cidades) ? ur.cidades : Object.values(ur.cidades);
+            
+            // Filtra as cidades, mantendo apenas aquelas que NÃO são a cidade que queremos excluir
+            const novasCidades = arrayCidades.filter(c => {
+                const idAtual = c.id || c.nome;
+                return String(idAtual) !== String(cidadeId);
+            });
+            
+            // Atualiza o banco de dados
+            db.ref('urs/' + ur.id).update({
+                cidades: novasCidades
+            });
+        }
+
         function addTecnico(e) { 
             e.preventDefault(); 
             const id = Date.now().toString();
@@ -395,18 +410,50 @@
 
         function addUR(e) { 
             e.preventDefault(); 
-            const id = Date.now().toString();
+            
+            const nomeUR = document.getElementById('urNomeInput').value.trim();
             const cidadesInputs = Array.from(document.querySelectorAll('.cidade-input'));
             
-            const cidades = cidadesInputs.filter(i => i.value.trim() !== '').map(i => ({ 
+            if (!nomeUR) {
+                alert("Por favor, digite o nome da UR.");
+                return;
+            }
+
+            const novasCidades = cidadesInputs.filter(i => i.value.trim() !== '').map(i => ({ 
                 id: Math.random().toString(36).substr(2,9), 
-                nome: i.value.trim()
+                nome: i.value.trim().toUpperCase()
             })); 
-            
-            db.ref('urs/' + id).set({ id, nome: document.getElementById('urNomeInput').value.trim(), cidades });
+
+            if (novasCidades.length === 0) {
+                alert("Por favor, adicione pelo menos uma cidade para esta UR.");
+                return;
+            }
+
+            const urExistente = localData.urs.find(u => u.nome.toLowerCase() === nomeUR.toLowerCase());
+
+            if (urExistente) {
+                let cidadesAtuais = [];
+                if (urExistente.cidades) {
+                    cidadesAtuais = Array.isArray(urExistente.cidades) ? urExistente.cidades : Object.values(urExistente.cidades);
+                }
+
+                const cidadesAtualizadas = [...cidadesAtuais, ...novasCidades];
+
+                db.ref('urs/' + urExistente.id).update({
+                    cidades: cidadesAtualizadas
+                });
+
+            } else {
+                const id = Date.now().toString();
+                db.ref('urs/' + id).set({ 
+                    id: id, 
+                    nome: nomeUR.toUpperCase(),
+                    cidades: novasCidades 
+                });
+            }
             
             document.getElementById('urNomeInput').value = ''; 
-            document.getElementById('cidadesInputContainer').innerHTML = '<input type="text" class="form-input cidade-input" placeholder="Cidade">';
+            document.getElementById('cidadesInputContainer').innerHTML = '<input type="text" class="form-input cidade-input" placeholder="Nome da Cidade">';
         }
 
         function addAgendamento(e) { 
@@ -445,14 +492,34 @@
             document.getElementById('tecnicosTable').innerHTML = localData.technicians.map(t => `<tr style="border-bottom:1px solid #eee"><td style="padding:12px; font-weight:600">${t.nome}</td><td align="right" class="no-print">${userLevel === 'total' ? `<button class="nav-btn" style="color:red" onclick="deleteItem('technicians','${t.id}')">Excluir</button>` : ''}</td></tr>`).join('');
         }
 
+        // --- TABELA DE UR COM ETIQUETAS PARA AS CIDADES E BOTÃO INDIVIDUAL DE EXCLUIR ---
         function renderURsTable() {
             document.getElementById('ursTable').innerHTML = localData.urs.map(u => {
                 let htmlCidades = '';
                 if(u.cidades) {
                     const arrayCidades = Array.isArray(u.cidades) ? u.cidades : Object.values(u.cidades);
-                    htmlCidades = arrayCidades.map(c => typeof c === 'string' ? c : c.nome).join(', ');
+                    
+                    htmlCidades = arrayCidades.map(c => {
+                        const cid = c.id || c.nome;
+                        const cNome = typeof c === 'string' ? c : c.nome;
+                        const btnRemove = userLevel === 'total' ? `<span onclick="removeCidadeFromUR('${u.id}', '${cid}')" style="color: #ef4444; font-weight: bold; cursor: pointer; margin-left: 6px; padding: 0 4px;" title="Remover cidade">&times;</span>` : '';
+                        
+                        return `<span style="display: inline-block; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px; margin: 4px 4px 0 0; font-size: 0.75rem; color: #475569;">${cNome}${btnRemove}</span>`;
+                    }).join('');
                 }
-                return `<div class="card" style="display:flex; justify-content:space-between; align-items:center"><div><strong>${u.nome}</strong><br><small>${htmlCidades}</small></div><div class="no-print">${userLevel === 'total' ? `<button class="nav-btn" style="color:red" onclick="deleteItem('urs','${u.id}')">Excluir</button>` : ''}</div></div>`;
+                
+                return `
+                <div class="card" style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 200px;">
+                        <strong style="color: var(--primary); font-size: 1.1rem;">${u.nome}</strong>
+                        <div style="margin-top: 8px;">
+                            ${htmlCidades || '<span style="color: #ef4444; font-size: 0.8rem;">Nenhuma cidade cadastrada</span>'}
+                        </div>
+                    </div>
+                    <div class="no-print" style="margin-left: 10px; margin-top: 5px;">
+                        ${userLevel === 'total' ? `<button class="nav-btn" style="color:red; border: 1px solid #ffcdd2;" onclick="deleteItem('urs','${u.id}')">Excluir UR Completa</button>` : ''}
+                    </div>
+                </div>`;
             }).join('');
         }
 
@@ -514,7 +581,7 @@
         function addCidadeInput() { 
             const inp = document.createElement('input');
             inp.className = 'form-input cidade-input'; 
-            inp.placeholder = 'Cidade'; 
+            inp.placeholder = 'Nome da Cidade'; 
             document.getElementById('cidadesInputContainer').appendChild(inp); 
         }
 
