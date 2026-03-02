@@ -100,26 +100,13 @@
         .modal-overlay.active { display: flex; }
         .modal { background: white; padding: 25px; border-radius: 15px; width: 100%; max-width: 450px; }
 
-        /* --- CORREÇÃO DEFINITIVA DE IMPRESSÃO --- */
         @media print {
-            .no-print, #loginScreen, .top-nav, .action-bar, .modal-overlay, button, input, select, textarea { 
-                display: none !important;
-            }
+            .no-print, #loginScreen, .top-nav, .action-bar, .modal-overlay, button, input, select, textarea { display: none !important; }
             body, html { background: white !important; height: auto !important; overflow: visible !important; }
             #appContent { display: block !important; padding: 0 !important; }
             .main-content { padding: 0 !important; margin: 0 !important; width: 100% !important; max-width: none !important; }
-            .calendar-grid { 
-                display: grid !important;
-                grid-template-columns: repeat(7, 1fr) !important; 
-                gap: 5px !important; 
-                width: 100% !important;
-            }
-            .calendar-cell { 
-                border-width: 1.5px !important;
-                height: 120px !important; 
-                page-break-inside: avoid !important;
-                border-color: #94a3b8 !important;
-            }
+            .calendar-grid { display: grid !important; grid-template-columns: repeat(7, 1fr) !important; gap: 5px !important; width: 100% !important; }
+            .calendar-cell { border-width: 1.5px !important; height: 120px !important; page-break-inside: avoid !important; border-color: #94a3b8 !important; }
             .day-number { color: black !important; }
             .calendar-cell.cell-weekend { border-color: #ef4444 !important; }
             .calendar-cell.cell-holiday { border-color: #059669 !important; }
@@ -265,13 +252,32 @@
 
         function logout() { location.reload(); }
 
+        // --- ATUALIZAÇÃO BLINDADA DO BANCO DE DADOS ---
         function startSync() {
             db.ref('/').on('value', (snapshot) => {
                 const data = snapshot.val() || {};
-                localData.technicians = Object.values(data.technicians || {});
-                localData.urs = Object.values(data.urs || {});
-                localData.agendamentos = Object.values(data.agendamentos || {});
-                renderCalendar(); renderTecnicosTable(); renderURsTable(); updateSelects();
+                
+                // Força a inserção de um ID válido a partir da chave do Firebase, 
+                // corrigindo URs antigas que possam ter sido salvas manualmente sem ID.
+                localData.technicians = Object.keys(data.technicians || {}).map(key => {
+                    let obj = data.technicians[key];
+                    return typeof obj === 'object' ? { id: key, ...obj } : { id: key, nome: obj };
+                });
+                
+                localData.urs = Object.keys(data.urs || {}).map(key => {
+                    let obj = data.urs[key];
+                    return typeof obj === 'object' ? { id: key, ...obj } : { id: key, nome: obj, cidades: [] };
+                });
+                
+                localData.agendamentos = Object.keys(data.agendamentos || {}).map(key => {
+                    let obj = data.agendamentos[key];
+                    return { id: key, ...obj };
+                });
+                
+                renderCalendar(); 
+                renderTecnicosTable(); 
+                renderURsTable(); 
+                updateSelects();
             });
         }
 
@@ -297,14 +303,14 @@
                 let h = `<div class="${cl}" onclick="quickSchedule('${ds}')"><span class="day-number">${day}</span>${fn ? `<div class="holiday-label">${fn}</div>` : ''}`;
                 
                 da.forEach(a => {
-                    const t = localData.technicians.find(x => x.id == a.tecnicoId);
-                    const u = localData.urs.find(x => x.id == a.urId);
+                    // Garantir conversão para string para buscas de IDs exatas
+                    const t = localData.technicians.find(x => String(x.id) === String(a.tecnicoId));
+                    const u = localData.urs.find(x => String(x.id) === String(a.urId));
                     
                     let c = null;
                     if (u && u.cidades) {
-                        // Força conversão segura de Firebase Object para Array
                         const cidadesArray = Array.isArray(u.cidades) ? u.cidades : Object.values(u.cidades);
-                        c = cidadesArray.find(x => x.id == a.cidadeId);
+                        c = cidadesArray.find(x => String(x.id) === String(a.cidadeId) || x.nome === a.cidadeId);
                     }
                     
                     h += `<div class="info-card" onclick="event.stopPropagation(); openDetail('${a.id}')"><span class="t-name">${t?.nome || '---'}</span><span class="u-name">${u?.nome || '---'}</span><span class="c-name">${c?.nome || '---'}</span></div>`;
@@ -321,15 +327,14 @@
         }
 
         function openDetail(id) {
-            const a = localData.agendamentos.find(x => x.id == id);
-            const t = localData.technicians.find(x => x.id == a.tecnicoId);
-            const u = localData.urs.find(x => x.id == a.urId);
+            const a = localData.agendamentos.find(x => String(x.id) === String(id));
+            const t = localData.technicians.find(x => String(x.id) === String(a.tecnicoId));
+            const u = localData.urs.find(x => String(x.id) === String(a.urId));
             
             let c = null;
             if (u && u.cidades) {
-                // Força conversão segura de Firebase Object para Array
                 const cidadesArray = Array.isArray(u.cidades) ? u.cidades : Object.values(u.cidades);
-                c = cidadesArray.find(x => x.id == a.cidadeId);
+                c = cidadesArray.find(x => String(x.id) === String(a.cidadeId) || x.nome === a.cidadeId);
             }
             
             document.getElementById('modalTitle').innerText = "Detalhes da Visita";
@@ -348,7 +353,7 @@
         function addTecnico(e) { 
             e.preventDefault(); 
             const id = Date.now().toString();
-            db.ref('technicians/' + id).set({ id, nome: document.getElementById('tecnicoNomeInput').value }); 
+            db.ref('technicians/' + id).set({ id, nome: document.getElementById('tecnicoNomeInput').value.trim() }); 
             document.getElementById('tecnicoNomeInput').value = '';
         }
 
@@ -357,15 +362,13 @@
             const id = Date.now().toString();
             const cidadesInputs = Array.from(document.querySelectorAll('.cidade-input'));
             
-            // Filtra inputs vazios para não criar arrays quebrados no Firebase
             const cidades = cidadesInputs.filter(i => i.value.trim() !== '').map(i => ({ 
                 id: Math.random().toString(36).substr(2,9), 
-                nome: i.value 
+                nome: i.value.trim()
             })); 
             
-            db.ref('urs/' + id).set({ id, nome: document.getElementById('urNomeInput').value, cidades });
+            db.ref('urs/' + id).set({ id, nome: document.getElementById('urNomeInput').value.trim(), cidades });
             
-            // Limpa o formulário corretamente
             document.getElementById('urNomeInput').value = ''; 
             document.getElementById('cidadesInputContainer').innerHTML = '<input type="text" class="form-input cidade-input" placeholder="Cidade">';
         }
@@ -408,33 +411,105 @@
 
         function renderURsTable() {
             document.getElementById('ursTable').innerHTML = localData.urs.map(u => {
-                // Força conversão segura de Firebase Object para Array na tabela de visualização
-                const cidadesArray = u.cidades ? (Array.isArray(u.cidades) ? u.cidades : Object.values(u.cidades)) : [];
-                return `<div class="card" style="display:flex; justify-content:space-between; align-items:center"><div><strong>${u.nome}</strong><br><small>${cidadesArray.map(c => c.nome).join(', ')}</small></div><div class="no-print">${userLevel === 'total' ? `<button class="nav-btn" style="color:red" onclick="deleteItem('urs','${u.id}')">Excluir</button>` : ''}</div></div>`;
+                let htmlCidades = '';
+                if(u.cidades) {
+                    const arrayCidades = Array.isArray(u.cidades) ? u.cidades : Object.values(u.cidades);
+                    // Mapeamento à prova de falhas para dados antigos
+                    htmlCidades = arrayCidades.map(c => typeof c === 'string' ? c : c.nome).join(', ');
+                }
+                return `<div class="card" style="display:flex; justify-content:space-between; align-items:center"><div><strong>${u.nome}</strong><br><small>${htmlCidades}</small></div><div class="no-print">${userLevel === 'total' ? `<button class="nav-btn" style="color:red" onclick="deleteItem('urs','${u.id}')">Excluir</button>` : ''}</div></div>`;
             }).join('');
         }
 
-        // --- LÓGICA DE SELECTS CORRIGIDA COM PREVENÇÃO DE FIREBASE OBJECT COERCION ---
+        // --- SISTEMA CORRIGIDO DE CASCATA PARA SELECTS ---
         function updateSelects() {
-            const currentTec = document.getElementById('tecnicoSelect').value;
-            const currentUr = document.getElementById('urSelect').value;
-            const currentCidade = document.getElementById('cidadeSelect').value;
+            const tecSelect = document.getElementById('tecnicoSelect');
+            const urSelect = document.getElementById('urSelect');
+            const cidSelect = document.getElementById('cidadeSelect');
 
-            document.getElementById('tecnicoSelect').innerHTML = '<option value="" disabled selected>Selecione o Técnico</option>' + localData.technicians.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
-            document.getElementById('urSelect').innerHTML = '<option value="" disabled selected>Selecione a UR</option>' + localData.urs.map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
+            const currentTec = tecSelect.value;
+            const currentUr = urSelect.value;
+            const currentCidade = cidSelect.value;
 
-            if (currentTec) document.getElementById('tecnicoSelect').value = currentTec;
-            if (currentUr) document.getElementById('urSelect').value = currentUr;
+            tecSelect.innerHTML = '<option value="" disabled selected>Selecione o Técnico</option>' + 
+                localData.technicians.map(t => `<option value="${t.id}">${t.nome}</option>`).join('');
+                
+            urSelect.innerHTML = '<option value="" disabled selected>Selecione a UR</option>' + 
+                localData.urs.map(u => `<option value="${u.id}">${u.nome}</option>`).join('');
 
+            // Restaura as opções selecionadas se elas existirem
+            if (currentTec) tecSelect.value = currentTec;
+            if (currentUr) urSelect.value = currentUr;
+
+            // Chama a atualização das cidades imediatamente
             updateCidades();
             
-            // Tenta restaurar a cidade se o usuário estiver no meio da seleção e o banco sincronizar
-            if (currentCidade) document.getElementById('cidadeSelect').value = currentCidade;
+            // Restaura a cidade se ainda for válida na lista gerada
+            if (currentCidade) {
+                const exists = Array.from(cidSelect.options).some(opt => opt.value === currentCidade);
+                if (exists) {
+                    cidSelect.value = currentCidade;
+                }
+            }
         }
 
         function updateCidades() {
             const urId = document.getElementById('urSelect').value;
-            // O operador == garante que mesmo que o id no banco seja um número, a busca encontre o valor em texto
-            const ur = localData.urs.find(u => u.id == urId);
             
-            let html =
+            // Busca a UR garantindo que tipo (texto vs numero) não quebre a lógica
+            const ur = localData.urs.find(u => String(u.id) === String(urId) || u.nome === urId);
+            
+            let html = '<option value="" disabled selected>Selecione a Cidade</option>';
+            
+            if (ur && ur.cidades) {
+                // Previne falha caso Firebase tenha convertido a lista em Objeto
+                const listaCidades = Array.isArray(ur.cidades) ? ur.cidades : Object.values(ur.cidades);
+                
+                // Mapeia e corrige cidades antigas salvas como texto simples
+                const cidadesValidas = listaCidades.map(c => {
+                    if (typeof c === 'string') return { id: c, nome: c }; 
+                    return c;
+                }).filter(c => c && c.nome);
+                
+                if(cidadesValidas.length > 0) {
+                    // ID serve como value, se não tiver ID usa o próprio nome
+                    html += cidadesValidas.map(c => `<option value="${c.id || c.nome}">${c.nome}</option>`).join('');
+                } else {
+                    html = '<option value="" disabled selected>Nenhuma cidade cadastrada nesta UR</option>';
+                }
+            } else if (urId) {
+                html = '<option value="" disabled selected>Nenhuma cidade cadastrada nesta UR</option>';
+            }
+            
+            document.getElementById('cidadeSelect').innerHTML = html;
+        }
+
+        function addCidadeInput() { 
+            const inp = document.createElement('input');
+            inp.className = 'form-input cidade-input'; 
+            inp.placeholder = 'Cidade'; 
+            document.getElementById('cidadesInputContainer').appendChild(inp); 
+        }
+
+        function switchTab(id) { 
+            document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active')); 
+            document.getElementById(id).classList.add('active'); 
+            if(document.getElementById('btn-'+id)) document.getElementById('btn-'+id).classList.add('active'); 
+        }
+
+        function closeModal() { document.getElementById('modalOverlay').classList.remove('active'); }
+        function prevMonth() { currentDate.setMonth(currentDate.getMonth() - 1); renderCalendar(); }
+        function nextMonth() { currentDate.setMonth(currentDate.getMonth() + 1); renderCalendar(); }
+
+        function exportJSON() { 
+            const d = { techs: localData.technicians, urs: localData.urs, ags: localData.agendamentos };
+            const b = new Blob([JSON.stringify(d)], {type:'application/json'}); 
+            const a = document.createElement('a'); 
+            a.href = URL.createObjectURL(b); 
+            a.download = 'backup_escala.json'; 
+            a.click();
+        }
+    </script>
+</body>
+</html>
